@@ -32,13 +32,19 @@ public class SiteGeoDaoRedisImpl implements SiteGeoDao {
     public Set<Site> findAll() {
         try (Jedis jedis = jedisPool.getResource()) {
             Set<String> keys = jedis.zrange(RedisSchema.getSiteGeoKey(), 0, -1);
-            Set<Site> sites = new HashSet<>(keys.size());
+
+            Set<Response<Map<String,String>>> siteResponses = new HashSet<>(keys.size());
+            Pipeline p = jedis.pipelined();
             for (String key : keys) {
-                Map<String, String> site = jedis.hgetAll(key);
-                if (!site.isEmpty()) {
-                    sites.add(new Site(site));
-                }
+                siteResponses.add(p.hgetAll(key));
             }
+            p.sync();
+
+            Set<Site> sites = new HashSet<>(keys.size());
+            for(Response<Map<String,String>> siteResponse : siteResponses) {
+                sites.add(new Site(siteResponse.get()));
+            }
+
             return sites;
         }
     }
